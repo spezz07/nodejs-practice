@@ -1,48 +1,140 @@
 let fs = require('fs');
-let request = require('request');
-let page = '001';
+let request = require('superagent-charset')(require('superagent'));
+let cherrio = require('cheerio')
 let num = 1;
-let weburl = 'web4.cartoonmad.com';
-let pichash = 'c86eo736r62';// 图片库的id
-let index = 1427;//漫画序号
-let startindex = '001';// 开始页
-let endindex = '260'; // 结束页
-function imgDownload() {
-    let url = `http://${weburl}/${pichash}/${index}/${startindex}/${page}.jpg`;
-    let filepath = 'img/'+ num + '.jpg';
-    console.log(`现在下载第${num}张图片,\n图片地址:${url},\n图片位置:${filepath}`);
-    request(url,function (error, response, body) {
-        if(response.statusCode === 404){
-            startindex = parseInt(startindex);
-            console.log(startindex);
-            if(startindex<10){
-                startindex = `00${startindex+1}`;
+let weburl = 'http://www.cartoonmad.com/comic/5827.html'
+let pichash;// 图片库的id
+let startindex = '005' // 开始话数
+let endindex = '006' // 结束话数
+let page = '009';
+let comname
+let url
+var comcisdownurl
+var pathname
+let comnum = '5827'// 文件夹名字
+let count = 0
+function filedir (comnum) {
+  return new Promise((resolve, reject)=>{
+    fs.access( `${__dirname}\\img\\${comnum}`, function (err){
+        if (err) {
+          fs.mkdir( `${__dirname}\\img\\${comnum}`, function (err) {
+            if (err) {
+              console.log(err)
+              reject()
+            } else {
+              console.log('----------------成功创建文件夹----------------')
+                pathname = `${__dirname}\\img\\${comnum}`
+                resolve(pathname)
             }
-            else if(startindex>=10 && startindex<100){
-                startindex = `0${startindex+1}`;
-            }
-            else if(startindex>=100){
-                startindex = `${startindex+1}`;
-            }
-            console.log(startindex);
-            page = '000';
-            num = num - 1;
+          })
+        } else {
+            pathname = `${__dirname}\\img\\${comnum}`
+            console.log(`----------------文件夹已存在----------------\n----------------路径是:${pathname}----------------`)
+            resolve()
         }
-        if((startindex-1) == endindex){
-            console.log('下载完毕');
-            process.exit()
+      }
+    )
+  })
+  }
+function imgurl(weburl) {
+  return new Promise((resolve,reject)=>{
+    request.get(weburl)
+      .charset('big5')
+      .end((err,data)=>{
+        console.log(weburl)
+        if(err){
+          console.log('weburl error')
         }else {
-            request(url).pipe(fs.createWriteStream(filepath));
-            num ++;
-            page ++;
-            if(page>=10){
-                page = `0${page ++}`;
-            }
-            else {
-                page = `00${page ++}`;
-            }
-            imgDownload();
-        }
-        });
+          console.log(`----------------漫画的地址为:${weburl}----------------`)
+          let $ = cherrio.load(data.text,{decodeEntities: false})
+          comname = $('td[width="472"]').children().eq(5).text()
+            console.log(`----------------漫画名字: ${comname}----------------`)
+          url =  `http://www.cartoonmad.com/`+ $('a[target="_blank"]').eq(11).attr('href')
+            console.log(`----------------正在获取漫画的下载地址----------------`)
+            request.get(url)
+                .charset('big5')
+                .end((err,data)=>{
+                        if(err){
+                            console.log('获取漫画下载地址失败')
+                        }else {
+                            let $ = cherrio.load(data.text,{decodeEntities: false})
+                            let temp = $('img[oncontextmenu="return false"]').attr('src')
+                            comcisdownurl = String(temp.substr(0,(temp.length)-12))
+                            resolve()
+                        }
+                    })}
+      })
+      }).catch((err)=>{console.log(err)})
 }
- imgDownload()
+function filedown (pathname,comcisdownurl) {
+  return new Promise((resolve,reject)=>{
+    fs.access(`${pathname}\\${num}.jpg`, function (err) {
+      if (err) {
+          urlchange(comcisdownurl,startindex,endindex)
+          resolve()
+        } else {
+        console.log(`----------------图片${num}已存在----------------`)
+          num ++
+          filedown(pathname,comcisdownurl)
+      }
+    })
+  })
+}
+function urlchange(comcisdownurl,startindex,endindex) {
+  request.get(`${comcisdownurl}/${startindex}/${page}.jpg`)
+    .end((err,data)=>{
+      if(data.status === 404){
+        startindex = parseInt(startindex);
+        console.log(startindex);
+        if(startindex<10){
+          startindex = `00${startindex+1}`;
+        }
+        else if(startindex>=10 && startindex<100){
+          startindex = `0${startindex+1}`;
+        }
+        else if(startindex>=100){
+          startindex = `${startindex+1}`;
+        }
+        console.log(startindex);
+        page = '001';
+        num = num - 1;
+      }
+      if((startindex-1) >= endindex){
+          if(count === 0){
+              console.log('下载完毕');
+              process.exit()
+          }
+
+      }else {
+          console.log(`----------------成功获取漫画的下载地址----------------\n----------------No.${num}图片下载地址为:---------------\n---------------${comcisdownurl}/${startindex}/${page}.jpg----------------`)
+        console.log(`----------------正在下载No.${num}图片----------------`)
+        request.get(`${comcisdownurl}/${startindex}/${page}.jpg`)
+               .pipe(fs.createWriteStream(`${pathname}/${num}.jpg`))
+               .on('finish',()=>{
+                   count --
+                   console.log(`----------------No.${num-1}图片下载完毕----------------`)
+            })
+        num ++;
+        page ++;
+        count ++
+        if(page>=10){
+          page = `0${page ++}`;
+        } else {
+          page = `00${page ++}`;
+        }
+        urlchange(comcisdownurl,startindex,endindex)
+      }
+    })
+}
+let getcomics = async function () {
+    console.log("1")
+    await filedir(comnum)
+    console.log("2")
+    await imgurl(weburl)
+    console.log("3")
+    await filedown(pathname,comcisdownurl)
+    console.log("finish")
+
+}
+getcomics()
+
