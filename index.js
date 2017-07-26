@@ -2,18 +2,18 @@ let fs = require('fs');
 let request = require('superagent-charset')(require('superagent'));
 let cherrio = require('cheerio')
 let num = 1;
-let weburl = 'http://www.cartoonmad.com/comic/5827.html'
+let weburl = 'http://www.cartoonmad.com/comic/5827.html' // 漫画的地址
 let pichash;// 图片库的id
-let startindex = '005' // 开始话数
-let endindex = '006' // 结束话数
-let page = '009';
+let startindex = '001' // 开始话数
+let endindex = '008' // 结束话数
+let page = '001'; // 每一话的开始页码数，001即为从该话数的第一页进行下载
 let comname
 let url
 var comcisdownurl
 var pathname
 let comnum = '5827'// 文件夹名字
 let count = 0
-function filedir (comnum) {
+function filedir (comnum) { // 检测是否存在本地文件夹
   return new Promise((resolve, reject)=>{
     fs.access( `${__dirname}\\img\\${comnum}`, function (err){
         if (err) {
@@ -36,7 +36,7 @@ function filedir (comnum) {
     )
   })
   }
-function imgurl(weburl) {
+function imgurl(weburl) { // 获取漫画的真实下载地址
   return new Promise((resolve,reject)=>{
     request.get(weburl)
       .charset('big5')
@@ -66,7 +66,7 @@ function imgurl(weburl) {
       })
       }).catch((err)=>{console.log(err)})
 }
-function filedown (pathname,comcisdownurl) {
+function filedown (pathname,comcisdownurl) {  // 检测本地是否存在同名图片
   return new Promise((resolve,reject)=>{
     fs.access(`${pathname}\\${num}.jpg`, function (err) {
       if (err) {
@@ -80,7 +80,7 @@ function filedown (pathname,comcisdownurl) {
     })
   })
 }
-function urlchange(comcisdownurl,startindex,endindex) {
+function urlchange(comcisdownurl,startindex,endindex) { // 根据状态码改变下载地址
   request.get(`${comcisdownurl}/${startindex}/${page}.jpg`)
     .end((err,data)=>{
       if(data.status === 404){
@@ -122,11 +122,11 @@ function urlchange(comcisdownurl,startindex,endindex) {
         } else {
           page = `00${page ++}`;
         }
-        urlchange(comcisdownurl,startindex,endindex)
+        urlchange(comcisdownurl,startindex,endindex) // 递归一下
       }
     })
 }
-let getcomics = async function () {
+let getcomics = async function () { // 尝试使用es7的async进行异步处理（不过还是有点问题。。。）
     console.log("1")
     await filedir(comnum)
     console.log("2")
